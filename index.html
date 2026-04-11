@@ -287,13 +287,16 @@
 
     function checkAdmission() {
         const id = document.getElementById('uni_id_input').value;
-        if(id.length >= 4) {
+        
+        // الأرقام المسموح لها بالاستعلام فقط
+        const allowedIds = ["2025", "2026", "8899", "1234"]; 
+
+        if(allowedIds.includes(id)) {
             document.getElementById('result_box').style.display = 'block';
             const major = localStorage.getItem('user_m') || "تقنية المعلومات والحوسبة";
             document.getElementById('res_major').innerText = major;
             document.getElementById('res_date').innerText = new Date().toLocaleDateString('ar-SA');
 
-            // تخصيص المادة بناءً على القسم المختار
             let course = "مقرر التخصص التأسيسي";
             if(major.includes("تقنية") || major.includes("حاسب") || major.includes("أمن")) course = "أساسيات البرمجة (TM105)";
             else if(major.includes("إدارة") || major.includes("المحاسبة") || major.includes("تسويق")) course = "مبادئ الإدارة (BUS110)";
@@ -302,7 +305,10 @@
             else if(major.includes("دبلوم")) course = "طرق التدريس (ED212)";
 
             document.getElementById('major_course').innerText = course;
-        } else alert('يرجى إدخال رقم جامعي صحيح');
+        } else {
+            alert('عفواً، الرقم الجامعي غير موجود أو لم يتم تفعيل طلبك بعد.');
+            document.getElementById('result_box').style.display = 'none';
+        }
     }
 
     function showSchedule() {
